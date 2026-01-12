@@ -55,16 +55,13 @@ class LoginSerializer(serializers.Serializer):
         email = attrs.get('email')
         password = attrs.get('password')
         
-        print(f"Login attempt - Email: {email}")  # DEBUG
         
         if email and password:
-            # Authentifiziere direkt mit Email (nicht mit Username!)
             user = authenticate(
-                username=email,  # Email als username Parameter übergeben
+                username=email, 
                 password=password
             )
             
-            print(f"Authentication result: {user}")  # DEBUG
             
             if not user:
                 raise serializers.ValidationError(
@@ -85,3 +82,15 @@ class LoginSerializer(serializers.Serializer):
             )
             
             
+
+class EmailCheckSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """
+        Check if email format is valid
+        """
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        return value
+    
