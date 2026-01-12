@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'tasks',
     'corsheaders',
     'rest_framework',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -146,3 +147,4 @@ REST_FRAMEWORK = {
     ]
 }
 
+AUTH_USER_MODEL = 'authentikation.CustomUser'

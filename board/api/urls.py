@@ -6,5 +6,5 @@ router = DefaultRouter()
 router.register(r'boards', BoardViewSet, basename='board')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    #path('', include(router.urls)),
 ]
