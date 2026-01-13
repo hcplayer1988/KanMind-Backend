@@ -54,8 +54,9 @@ class BoardViewSet(viewsets.ModelViewSet):
                 {'detail': 'You do not have permission to access this board.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
-        serializer = self.get_serializer(board)
+    
+        from .serializers import BoardDetailSerializer
+        serializer = BoardDetailSerializer(board)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     def partial_update(self, request, *args, **kwargs):

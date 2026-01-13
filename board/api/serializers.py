@@ -35,19 +35,25 @@ class BoardSerializer(serializers.ModelSerializer):
         return obj.members.count()
     
     def get_ticket_count(self, obj):
-        if hasattr(obj, 'tasks'):
-            return obj.tasks.count()
-        return 0
+        try:
+            from tasks.models import Task
+            return Task.objects.filter(board=obj).count()
+        except Exception:
+            return 0
     
     def get_tasks_to_do_count(self, obj):
-        if hasattr(obj, 'tasks'):
-            return obj.tasks.filter(status='to-do').count()
-        return 0
+        try:
+            from tasks.models import Task
+            return Task.objects.filter(board=obj, status='to-do').count()
+        except Exception:
+            return 0
     
     def get_tasks_high_prio_count(self, obj):
-        if hasattr(obj, 'tasks'):
-            return obj.tasks.filter(priority='high').count()
-        return 0
+        try:
+            from tasks.models import Task
+            return Task.objects.filter(board=obj, priority='high').count()
+        except Exception:
+            return 0
     
     def create(self, validated_data):
         member_ids = validated_data.pop('members', [])
@@ -69,15 +75,11 @@ class BoardSerializer(serializers.ModelSerializer):
         """
         Update board title and/or members
         """
-        # Update title if provided
         instance.title = validated_data.get('title', instance.title)
         instance.save()
         
-        # Update members if provided
         if 'members' in validated_data:
             member_ids = validated_data['members']
-            
-            # Validate that all user IDs exist
             valid_users = User.objects.filter(id__in=member_ids)
             if valid_users.count() != len(member_ids):
                 invalid_ids = set(member_ids) - set(valid_users.values_list('id', flat=True))
@@ -85,9 +87,8 @@ class BoardSerializer(serializers.ModelSerializer):
                     f"Invalid user IDs: {list(invalid_ids)}"
                 )
             
-            # Replace members (keep owner in members)
             instance.members.clear()
-            instance.members.add(instance.owner)  # Owner stays as member
+            instance.members.add(instance.owner)
             instance.members.add(*valid_users)
         
         return instance
@@ -97,5 +98,80 @@ class BoardSerializer(serializers.ModelSerializer):
         if not isinstance(value, list):
             raise serializers.ValidationError("Members must be a list of user IDs")
         return value
-        
-        
+
+
+class BoardDetailSerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+    ticket_count = serializers.SerializerMethodField()
+    tasks_to_do_count = serializers.SerializerMethodField()
+    tasks_high_prio_count = serializers.SerializerMethodField()
+    owner_id = serializers.IntegerField(source='owner.id', read_only=True)
+    tasks = serializers.SerializerMethodField()
+    members = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Board
+        fields = [
+            'id',
+            'title',
+            'member_count',
+            'ticket_count',
+            'tasks_to_do_count',
+            'tasks_high_prio_count',
+            'owner_id',
+            'tasks',
+            'members'
+        ]
+        read_only_fields = ['id', 'owner_id']
+    
+    def get_member_count(self, obj):
+        return obj.members.count()
+    
+    def get_members(self, obj):
+        """Returns full member details"""
+        members_list = obj.members.all()
+        return [
+            {
+                'id': member.id,
+                'email': member.email,
+                'fullname': member.username
+            }
+            for member in members_list
+        ]
+    
+    def get_tasks(self, obj):
+        """Returns all tasks for this board"""
+        try:
+            from tasks.models import Task
+            from tasks.api.serializers import TaskSerializer
+            tasks = Task.objects.filter(board=obj)
+            return TaskSerializer(tasks, many=True).data
+        except Exception as e:
+            print(f"Error getting tasks: {e}")
+            return []
+    
+    def get_ticket_count(self, obj):
+        try:
+            from tasks.models import Task
+            return Task.objects.filter(board=obj).count()
+        except Exception as e:
+            print(f"Error in ticket_count: {e}")
+            return 0
+    
+    def get_tasks_to_do_count(self, obj):
+        try:
+            from tasks.models import Task
+            return Task.objects.filter(board=obj, status='to-do').count()
+        except Exception as e:
+            print(f"Error in tasks_to_do_count: {e}")
+            return 0
+    
+    def get_tasks_high_prio_count(self, obj):
+        try:
+            from tasks.models import Task
+            return Task.objects.filter(board=obj, priority='high').count()
+        except Exception as e:
+            print(f"Error in tasks_high_prio_count: {e}")
+            return 0
+
+
