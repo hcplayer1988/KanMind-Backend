@@ -263,3 +263,4 @@ pyrightconfig.json
 #Personal Files
 
 user.txt
+.gitignore
