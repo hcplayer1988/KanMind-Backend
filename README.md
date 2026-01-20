@@ -2,6 +2,56 @@
 
 A Django REST Framework backend for a Kanban board application with user authentication, board management, task tracking, and comments.
 
+## 📑 Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Installation & Setup](#installation--setup)
+  - [Prerequisites](#prerequisites)
+  - [1. Clone the Repository](#1-clone-the-repository)
+  - [2. Create Virtual Environment](#2-create-virtual-environment)
+  - [3. Install Dependencies](#3-install-dependencies)
+  - [4. Database Setup](#4-database-setup)
+  - [5. Create Superuser (Optional)](#5-create-superuser-optional)
+  - [6. Start Development Server](#6-start-development-server)
+- [Configuration](#configuration)
+  - [Important Settings](#important-settings)
+  - [CORS Configuration](#cors-configuration)
+  - [Authentication Backend](#authentication-backend)
+  - [REST Framework Settings](#rest-framework-settings)
+- [API Endpoints](#api-endpoints)
+  - [Authentication](#authentication)
+  - [Boards](#boards)
+  - [Tasks](#tasks)
+  - [Comments](#comments)
+- [API Usage Examples](#api-usage-examples)
+  - [Registration](#registration)
+  - [Login](#login)
+  - [Create Board](#create-board)
+  - [Create Task](#create-task)
+- [Special Features & Considerations](#special-features--considerations)
+  - [1. Email-Based Authentication](#1-email-based-authentication)
+  - [2. Task Status Values](#2-task-status-values)
+  - [3. Permissions System](#3-permissions-system)
+  - [4. CORS Configuration](#4-cors-configuration)
+  - [5. Frontend Integration](#5-frontend-integration)
+  - [6. Database Reset](#6-database-reset)
+- [Admin Panel](#admin-panel)
+- [Development](#development)
+  - [Code Style](#code-style)
+  - [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+  - [Issue: CORS errors in browser](#issue-cors-errors-in-browser)
+  - [Issue: "Invalid email or password" despite correct credentials](#issue-invalid-email-or-password-despite-correct-credentials)
+  - [Issue: 401 Unauthorized on endpoints](#issue-401-unauthorized-on-endpoints)
+  - [Issue: Migrations conflict](#issue-migrations-conflict)
+- [Production Deployment](#production-deployment)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+---
+
 ## Features
 
 - **User Authentication**: Email-based login with token authentication
@@ -84,17 +134,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Required packages:**
-```
-Django==6.0.1
-djangorestframework
-django-cors-headers
-```
+`
 
 ### 4. Database Setup
 ```bash
-# Create migrations
-python manage.py makemigrations
 
 # Apply migrations
 python manage.py migrate
