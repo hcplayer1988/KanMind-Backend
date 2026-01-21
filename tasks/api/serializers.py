@@ -134,25 +134,40 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """Cross-field validation."""
-        board = attrs.get('board')
+        # Get board from instance (for update) or from attrs (for create)
+        if self.instance:
+            board = self.instance.board
+        else:
+            board = attrs.get('board')
+        
         assignee_id = attrs.get('assignee_id')
         reviewer_id = attrs.get('reviewer_id')
 
+        # Validate assignee is board member
         if assignee_id:
-            assignee = User.objects.get(id=assignee_id)
-            if (board.owner != assignee and
-                    not board.members.filter(id=assignee.id).exists()):
-                raise serializers.ValidationError({
-                    'assignee_id': 'Assignee must be a member of the board'
-                })
+            try:
+                assignee = User.objects.get(id=assignee_id)
+                if (board.owner != assignee and
+                        not board.members.filter(id=assignee.id).exists()):
+                    raise serializers.ValidationError({
+                        'assignee_id': 'Assignee must be a member of the board'
+                    })
+            except User.DoesNotExist:
+                # This should already be caught by validate_assignee_id
+                pass
 
+        # Validate reviewer is board member
         if reviewer_id:
-            reviewer = User.objects.get(id=reviewer_id)
-            if (board.owner != reviewer and
-                    not board.members.filter(id=reviewer.id).exists()):
-                raise serializers.ValidationError({
-                    'reviewer_id': 'Reviewer must be a member of the board'
-                })
+            try:
+                reviewer = User.objects.get(id=reviewer_id)
+                if (board.owner != reviewer and
+                        not board.members.filter(id=reviewer.id).exists()):
+                    raise serializers.ValidationError({
+                        'reviewer_id': 'Reviewer must be a member of the board'
+                    })
+            except User.DoesNotExist:
+                # This should already be caught by validate_reviewer_id
+                pass
 
         return attrs
 
@@ -164,10 +179,16 @@ class TaskSerializer(serializers.ModelSerializer):
         task = Task.objects.create(**validated_data)
 
         if assignee_id:
-            task.assignee = User.objects.get(id=assignee_id)
+            try:
+                task.assignee = User.objects.get(id=assignee_id)
+            except User.DoesNotExist:
+                pass
 
         if reviewer_id:
-            task.reviewer = User.objects.get(id=reviewer_id)
+            try:
+                task.reviewer = User.objects.get(id=reviewer_id)
+            except User.DoesNotExist:
+                pass
 
         task.save()
         return task
@@ -186,17 +207,27 @@ class TaskSerializer(serializers.ModelSerializer):
         instance.priority = validated_data.get('priority', instance.priority)
         instance.due_date = validated_data.get('due_date', instance.due_date)
 
+        # Handle assignee update
         if assignee_id is not None:
             if assignee_id == 0 or assignee_id == '':
                 instance.assignee = None
             else:
-                instance.assignee = User.objects.get(id=assignee_id)
+                try:
+                    instance.assignee = User.objects.get(id=assignee_id)
+                except User.DoesNotExist:
+                    # Should not happen due to validation, but be safe
+                    instance.assignee = None
 
+        # Handle reviewer update
         if reviewer_id is not None:
             if reviewer_id == 0 or reviewer_id == '':
                 instance.reviewer = None
             else:
-                instance.reviewer = User.objects.get(id=reviewer_id)
+                try:
+                    instance.reviewer = User.objects.get(id=reviewer_id)
+                except User.DoesNotExist:
+                    # Should not happen due to validation, but be safe
+                    instance.reviewer = None
 
         instance.save()
         return instance
@@ -211,6 +242,3 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ['id', 'created_at', 'author', 'content']
         read_only_fields = ['id', 'created_at', 'author']
-        
-
-    

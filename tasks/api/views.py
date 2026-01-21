@@ -13,6 +13,40 @@ from tasks.models import Comment, Task
 from .serializers import CommentSerializer, TaskSerializer
 
 
+class TaskPatchResponseSerializer:
+    """Custom serializer for PATCH response with complete task data."""
+    
+    @staticmethod
+    def serialize(task):
+        """Serialize task for PATCH response."""
+        assignee_data = None
+        if task.assignee:
+            assignee_data = {
+                'id': task.assignee.id,
+                'email': task.assignee.email,
+                'fullname': task.assignee.username
+            }
+        
+        reviewer_data = None
+        if task.reviewer:
+            reviewer_data = {
+                'id': task.reviewer.id,
+                'email': task.reviewer.email,
+                'fullname': task.reviewer.username
+            }
+        
+        return {
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'status': task.status,
+            'priority': task.priority,
+            'assignee': assignee_data,
+            'reviewer': reviewer_data,
+            'due_date': task.due_date.isoformat() if task.due_date else None
+        }
+
+
 class TaskViewSet(viewsets.ModelViewSet):
     """ViewSet for managing tasks."""
 
@@ -45,36 +79,56 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """PATCH /api/tasks/{task_id}/ - Update an existing task."""
-        task = self.get_object()
+        # Check if task exists
+        try:
+            task = Task.objects.get(pk=kwargs.get('pk'))
+        except Task.DoesNotExist:
+            return Response(
+                {'detail': 'Task not found. The specified Task-ID does not exist.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
         user = request.user
         board = task.board
 
+        # 403: Check permissions - user must be board member
         if (board.owner != user and
                 not board.members.filter(id=user.id).exists()):
             return Response(
-                {'detail': 'You must be a member of the board to update '
-                           'this task.'},
+                {'detail': 'Forbidden. User must be a member of the board to update this task.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Validate request data
         serializer = self.get_serializer(
             task,
             data=request.data,
             partial=True
         )
 
-        if serializer.is_valid():
-            task = serializer.save()
-            response_serializer = self.get_serializer(task)
+        # 400: Invalid data
+        if not serializer.is_valid():
             return Response(
-                response_serializer.data,
-                status=status.HTTP_200_OK
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        try:
+            # Save the task
+            task = serializer.save()
+            
+            # Return custom response with complete task data
+            response_data = TaskPatchResponseSerializer.serialize(task)
+            return Response(
+                response_data,
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            # 500: Internal server error
+            return Response(
+                {'detail': f'Internal server error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def destroy(self, request, *args, **kwargs):
         """DELETE /api/tasks/{task_id}/ - Delete a task (owner only)."""
@@ -179,5 +233,3 @@ class TaskViewSet(viewsets.ModelViewSet):
         tasks = self.get_queryset().filter(reviewer=user)
         serializer = self.get_serializer(tasks, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    

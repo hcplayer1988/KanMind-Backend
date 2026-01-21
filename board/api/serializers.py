@@ -85,6 +85,27 @@ class BoardSerializer(serializers.ModelSerializer):
 
         return board
 
+    def validate_members(self, value):
+        """Validate members list."""
+        if not isinstance(value, list):
+            raise serializers.ValidationError(
+                "Members must be a list of user IDs"
+            )
+        
+        # Check if all member IDs exist
+        if value:  # Only check if list is not empty
+            valid_users = User.objects.filter(id__in=value)
+            if valid_users.count() != len(value):
+                invalid_ids = (
+                    set(value) -
+                    set(valid_users.values_list('id', flat=True))
+                )
+                raise serializers.ValidationError(
+                    f"Invalid user IDs: {list(invalid_ids)}"
+                )
+        
+        return value
+
     def update(self, instance, validated_data):
         """Update board title and/or members."""
         instance.title = validated_data.get('title', instance.title)
@@ -92,29 +113,15 @@ class BoardSerializer(serializers.ModelSerializer):
 
         if 'members' in validated_data:
             member_ids = validated_data['members']
+            # Members are already validated in validate_members
             valid_users = User.objects.filter(id__in=member_ids)
-            if valid_users.count() != len(member_ids):
-                invalid_ids = (
-                    set(member_ids) -
-                    set(valid_users.values_list('id', flat=True))
-                )
-                raise serializers.ValidationError(
-                    f"Invalid user IDs: {list(invalid_ids)}"
-                )
 
             instance.members.clear()
             instance.members.add(instance.owner)
-            instance.members.add(*valid_users)
+            if valid_users.exists():
+                instance.members.add(*valid_users)
 
         return instance
-
-    def validate_members(self, value):
-        """Validate members list."""
-        if not isinstance(value, list):
-            raise serializers.ValidationError(
-                "Members must be a list of user IDs"
-            )
-        return value
 
 
 class BoardDetailSerializer(serializers.ModelSerializer):
@@ -125,8 +132,10 @@ class BoardDetailSerializer(serializers.ModelSerializer):
     tasks_to_do_count = serializers.SerializerMethodField()
     tasks_high_prio_count = serializers.SerializerMethodField()
     owner_id = serializers.IntegerField(source='owner.id', read_only=True)
+    owner_data = serializers.SerializerMethodField()
     tasks = serializers.SerializerMethodField()
     members = serializers.SerializerMethodField()
+    members_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Board
@@ -138,16 +147,38 @@ class BoardDetailSerializer(serializers.ModelSerializer):
             'tasks_to_do_count',
             'tasks_high_prio_count',
             'owner_id',
+            'owner_data',
             'tasks',
-            'members'
+            'members',
+            'members_data'
         ]
         read_only_fields = ['id', 'owner_id']
 
     def get_member_count(self, obj):
         """Return the number of board members."""
         return obj.members.count()
+    
+    def get_owner_data(self, obj):
+        """Return owner details."""
+        return {
+            'id': obj.owner.id,
+            'email': obj.owner.email,
+            'fullname': obj.owner.username
+        }
 
     def get_members(self, obj):
+        """Return full member details (for backward compatibility)."""
+        members_list = obj.members.all()
+        return [
+            {
+                'id': member.id,
+                'email': member.email,
+                'fullname': member.username
+            }
+            for member in members_list
+        ]
+
+    def get_members_data(self, obj):
         """Return full member details."""
         members_list = obj.members.all()
         return [
@@ -199,5 +230,3 @@ class BoardDetailSerializer(serializers.ModelSerializer):
         except Exception as e:
             print(f"Error in tasks_high_prio_count: {e}")
             return 0
-        
-        
