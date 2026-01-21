@@ -1,13 +1,11 @@
 """API views for task endpoints."""
 
 from django.db import models
-from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from board.models import Board
 from tasks.models import Comment, Task
 
 from .serializers import CommentSerializer, TaskSerializer
@@ -131,20 +129,37 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
 
     def destroy(self, request, *args, **kwargs):
-        """DELETE /api/tasks/{task_id}/ - Delete a task (owner only)."""
-        task = self.get_object()
+        """DELETE /api/tasks/{task_id}/ - Delete a task (board owner only)."""
         user = request.user
+        task_id = kwargs.get('pk')
+        
+        # Check if task exists
+        try:
+            task = Task.objects.get(pk=task_id)
+        except Task.DoesNotExist:
+            return Response(
+                {'detail': 'Task not found. The specified Task-ID does not exist.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
         board = task.board
-
+        
+        # Check if user is board member (403 if not)
+        if (board.owner != user and
+                not board.members.filter(id=user.id).exists()):
+            return Response(
+                {'detail': 'Forbidden. You must be a member of the board.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # User is board member - check if owner (only owner can delete)
         if board.owner != user:
             return Response(
-                {'detail': 'Only the task creator or board owner can '
-                           'delete this task.'},
+                {'detail': 'Forbidden. Only the board owner can delete this task.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         task.delete()
-
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get', 'post'], url_path='comments')
@@ -153,14 +168,25 @@ class TaskViewSet(viewsets.ModelViewSet):
         GET/POST /api/tasks/{task_id}/comments/
         Get all comments or create a new comment for a task.
         """
-        task = self.get_object()
         user = request.user
+        task_id = pk
+        
+        # Check if task exists
+        try:
+            task = Task.objects.get(pk=task_id)
+        except Task.DoesNotExist:
+            return Response(
+                {'detail': 'Task not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
         board = task.board
 
+        # Check if user is board member (403 if not)
         if (board.owner != user and
                 not board.members.filter(id=user.id).exists()):
             return Response(
-                {'detail': 'You must be a member of the board.'},
+                {'detail': 'Forbidden. You must be a member of the board.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -189,17 +215,29 @@ class TaskViewSet(viewsets.ModelViewSet):
             url_path='comments/(?P<comment_id>[^/.]+)')
     def delete_comment(self, request, pk=None, comment_id=None):
         """DELETE /api/tasks/{task_id}/comments/{comment_id}/"""
-        task = self.get_object()
         user = request.user
+        task_id = pk
+        
+        # Check if task exists
+        try:
+            task = Task.objects.get(pk=task_id)
+        except Task.DoesNotExist:
+            return Response(
+                {'detail': 'Task not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
         board = task.board
-
+        
+        # Check if user is board member (403 if not)
         if (board.owner != user and
                 not board.members.filter(id=user.id).exists()):
             return Response(
-                {'detail': 'You must be a member of the board.'},
-                status=status.HTTP_401_UNAUTHORIZED
+                {'detail': 'Forbidden. You must be a member of the board.'},
+                status=status.HTTP_403_FORBIDDEN
             )
-
+        
+        # Check if comment exists
         try:
             comment = Comment.objects.get(id=comment_id, task=task)
         except Comment.DoesNotExist:
@@ -207,15 +245,15 @@ class TaskViewSet(viewsets.ModelViewSet):
                 {'detail': 'Comment not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
-
+        
+        # Check if user is comment author (403 if not)
         if comment.author != user:
             return Response(
-                {'detail': 'Only the comment author can delete it.'},
+                {'detail': 'Forbidden. Only the comment author can delete it.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         comment.delete()
-
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'], url_path='assigned-to-me')

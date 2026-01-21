@@ -72,14 +72,26 @@ class BoardViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         """GET /api/boards/{board_id}/ - Retrieve a single board."""
-        board = self.get_object()
         user = request.user
+        board_id = kwargs.get('pk')
         
+        # First check if board exists at all
+        try:
+            board = Board.objects.get(pk=board_id)
+        except Board.DoesNotExist:
+            # Board doesn't exist - but check if user would have permission first
+            # If board existed but user has no access to any boards, it's still 404
+            # because we can't determine permissions on non-existent resource
+            return Response(
+                {'detail': 'Board not found. The specified Board-ID does not exist.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Board exists - now check permissions (403 before 404 for existing resources)
         if (board.owner != user and
                 not board.members.filter(id=user.id).exists()):
             return Response(
-                {'detail': 'You do not have permission to access this '
-                           'board.'},
+                {'detail': 'Forbidden. User must be either owner or member of the board.'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -140,12 +152,30 @@ class BoardViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """DELETE /api/boards/{board_id}/ - Delete a board (owner only)."""
-        board = self.get_object()
         user = request.user
+        board_id = kwargs.get('pk')
         
+        # Check if board exists
+        try:
+            board = Board.objects.get(pk=board_id)
+        except Board.DoesNotExist:
+            return Response(
+                {'detail': 'Board not found. The specified Board-ID does not exist.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Board exists - check permissions (must be owner OR member to get 403, not 404)
+        if (board.owner != user and
+                not board.members.filter(id=user.id).exists()):
+            return Response(
+                {'detail': 'Forbidden. You do not have permission to access this board.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # User is member or owner - check if owner (only owner can delete)
         if board.owner != user:
             return Response(
-                {'detail': 'Only the owner can delete this board.'},
+                {'detail': 'Forbidden. Only the owner can delete this board.'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
