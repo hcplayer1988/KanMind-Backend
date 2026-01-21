@@ -69,19 +69,11 @@ class TaskSerializer(serializers.ModelSerializer):
         return 0
 
     def validate_board(self, value):
-        """Validate that the board exists and user has access."""
-        user = self.context['request'].user
-
+        """Validate that the board exists."""
         try:
             board = Board.objects.get(id=value.id)
         except Board.DoesNotExist:
             raise serializers.ValidationError("Board does not exist")
-
-        if (board.owner != user and
-                not board.members.filter(id=user.id).exists()):
-            raise serializers.ValidationError(
-                "You must be a member of the board to create a task"
-            )
 
         return value
 

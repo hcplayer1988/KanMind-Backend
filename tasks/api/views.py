@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from board.models import Board
 from tasks.models import Comment, Task
 
 from .serializers import CommentSerializer, TaskSerializer
@@ -60,6 +61,34 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """POST /api/tasks/ - Create a new task within a board."""
+        user = request.user
+        board_id = request.data.get('board')
+        
+        # Check if board ID is provided
+        if not board_id:
+            return Response(
+                {'board': 'This field is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if board exists
+        try:
+            board = Board.objects.get(pk=board_id)
+        except Board.DoesNotExist:
+            return Response(
+                {'detail': 'Board not found. The specified Board-ID does not exist.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 403: Check if user is board member (BEFORE validation)
+        if (board.owner != user and
+                not board.members.filter(id=user.id).exists()):
+            return Response(
+                {'detail': 'Forbidden. You must be a member of the board to create a task.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Now validate the rest of the data
         serializer = self.get_serializer(data=request.data)
 
         if serializer.is_valid():
